@@ -12,10 +12,62 @@ class GeminiService:
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
         
+        # Configure the API with the key
         genai.configure(api_key=api_key)
-        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
-        if not self.model:
-            raise ValueError("GEMINI_MODEL environment variable not set")
+        
+        # Get model name from environment variable with updated defaults
+        model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+        
+        # List of known working models to try
+        fallback_models = [
+            'gemini-2.0-flash'
+            'gemini-1.5-flash',
+            'gemini-1.5-pro', 
+            'gemini-1.0-pro',
+            'models/gemini-1.5-flash',
+            'models/gemini-1.5-pro',
+            'models/gemini-1.0-pro'
+        ]
+        
+        # Try to initialize with specified model first
+        self.model = None
+        models_to_try = [model_name] + [m for m in fallback_models if m != model_name]
+        
+        for model in models_to_try:
+            try:
+                print(f"🔄 Trying to initialize with model: {model}")
+                self.model = genai.GenerativeModel(model)
+                # Test the model with a simple request
+                test_response = self.model.generate_content("Hello")
+                print(f"✅ Successfully initialized Gemini service with model: {model}")
+                break
+            except Exception as e:
+                print(f"❌ Failed to initialize model '{model}': {str(e)}")
+                continue
+        
+        if self.model is None:
+            # Last resort: try to list available models
+            try:
+                print("🔍 Listing available models...")
+                available_models = genai.list_models()
+                model_names = []
+                for model in available_models:
+                    if 'generateContent' in model.supported_generation_methods:
+                        model_names.append(model.name)
+                        print(f"   Available: {model.name}")
+                
+                if model_names:
+                    # Try the first available model
+                    first_model = model_names[0]
+                    print(f"🔄 Trying first available model: {first_model}")
+                    self.model = genai.GenerativeModel(first_model)
+                    print(f"✅ Successfully initialized with: {first_model}")
+                else:
+                    raise Exception("No models support generateContent")
+                    
+            except Exception as list_error:
+                print(f"❌ Failed to list models: {str(list_error)}")
+                raise Exception(f"Failed to initialize any Gemini model. Please check your API key and model availability.")
     
     def analyze_rfp(self, rfp_content: str) -> str:
         """Analyze RFP content and extract requirements"""
@@ -40,9 +92,11 @@ class GeminiService:
         """
         
         try:
+            print(f"🤖 Analyzing RFP with model: {self.model._model_name if hasattr(self.model, '_model_name') else 'unknown'}")
             response = self.model.generate_content(prompt)
             return response.text
         except Exception as e:
+            print(f"❌ Error in analyze_rfp: {str(e)}")
             raise Exception(f"Error analyzing RFP with Gemini: {str(e)}")
     
     def analyze_organization(self, org_content: str) -> str:
@@ -73,11 +127,18 @@ class GeminiService:
     def create_matching_table(self, rfp_requirements: str, org_analysis: str) -> List[Dict]:
         """Create matching table between RFP requirements and organization capabilities"""
         prompt = f"""
-        Based on the RFP requirements and organization analysis provided, create a matching table that shows:
-        - Each key RFP requirement
-        - How the organization can address it
-        - Match strength (Strong/Medium/Weak)
+        Based on the RFP requirements and organization analysis provided, create a comprehensive matching analysis that shows:
+        - Each key RFP requirement (be thorough and extract all important requirements)
+        - How the organization can address it (or if it cannot)
+        - Match strength (Strong/Medium/Weak/None)
         - Any gaps or concerns
+        
+        Instructions:
+        1. Extract ALL significant requirements from the RFP, not just a few
+        2. For each requirement, assess the organization's capability to address it
+        3. Use "Strong" for excellent matches, "Medium" for adequate matches, "Weak" for poor matches, "None" for missing capabilities
+        4. Be thorough - include technical, operational, experience, and compliance requirements
+        5. If a requirement has no corresponding organizational capability, mark it as "None"
         
         Format the response as a structured list that can be easily converted to a table.
         
@@ -87,12 +148,14 @@ class GeminiService:
         Organization Analysis:
         {org_analysis}
         
-        Provide the response in this exact format:
-        REQUIREMENT: [requirement]
-        CAPABILITY: [how org can address]
-        MATCH: [Strong/Medium/Weak]
-        NOTES: [additional notes]
+        Provide the response in this exact format for each requirement:
+        REQUIREMENT: [specific requirement from RFP]
+        CAPABILITY: [how org can address this, or "No corresponding capability identified"]
+        MATCH: [Strong/Medium/Weak/None]
+        NOTES: [additional notes, gaps, or concerns]
         ---
+        
+        Make sure to cover at least 8-12 different requirements to provide a comprehensive analysis.
         """
         
         try:
@@ -146,11 +209,22 @@ class GeminiService:
                 elif line.startswith('CAPABILITY:'):
                     match_data['capability'] = line.replace('CAPABILITY:', '').strip()
                 elif line.startswith('MATCH:'):
-                    match_data['match'] = line.replace('MATCH:', '').strip()
+                    match_strength = line.replace('MATCH:', '').strip().lower()
+                    # Normalize match strength values
+                    if match_strength in ['strong', 'excellent', 'high']:
+                        match_data['match'] = 'Strong'
+                    elif match_strength in ['medium', 'moderate', 'average', 'adequate']:
+                        match_data['match'] = 'Medium'
+                    elif match_strength in ['weak', 'low', 'poor', 'limited']:
+                        match_data['match'] = 'Weak'
+                    elif match_strength in ['none', 'missing', 'no', 'absent', 'not available']:
+                        match_data['match'] = 'None'
+                    else:
+                        match_data['match'] = match_strength.title()
                 elif line.startswith('NOTES:'):
                     match_data['notes'] = line.replace('NOTES:', '').strip()
             
-            if match_data:
+            if match_data and 'requirement' in match_data:
                 matches.append(match_data)
         
         return matches
