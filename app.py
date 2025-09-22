@@ -7,14 +7,15 @@ from services.gemini_service import GeminiService
 from services.document_generator import DocumentGenerator
 from utils.session_manager import SessionManager
 from dotenv import load_dotenv
-global env
+
+# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this'
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['OUTPUT_FOLDER'] = 'outputs'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-change-this')
+app.config['UPLOAD_FOLDER'] = os.getenv('UPLOAD_FOLDER', 'uploads')
+app.config['OUTPUT_FOLDER'] = os.getenv('OUTPUT_FOLDER', 'outputs')
+app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB max file size
 
 # Create directories if they don't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
