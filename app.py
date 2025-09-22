@@ -160,5 +160,13 @@ def get_sessions():
     user_sessions = session_manager.get_user_sessions(session['user_id'])
     return jsonify(user_sessions)
 
+@app.route('/delete_session/<int:session_id>', methods=['DELETE'])
+def delete_session(session_id):
+    try:
+        session_manager.delete_session(session['user_id'], session_id)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True)

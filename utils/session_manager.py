@@ -49,9 +49,10 @@ class SessionManager:
             })
             session_data = existing_session
         else:
-            # Create new session
+            # Create new session with unique ID
+            session_id = max([s.get('id', 0) for s in sessions], default=0) + 1
             session_data = {
-                'id': len(sessions) + 1,
+                'id': session_id,
                 'rfp_filename': filename,
                 'rfp_requirements': requirements,
                 'rfp_content': content,
@@ -68,6 +69,19 @@ class SessionManager:
         
         self._save_user_sessions(user_id, sessions)
         return session_data
+    
+    def delete_session(self, user_id: str, session_id: int) -> bool:
+        """Delete a specific session"""
+        sessions = self.get_user_sessions(user_id)
+        
+        # Find and remove session with matching ID
+        updated_sessions = [s for s in sessions if s.get('id') != session_id]
+        
+        if len(updated_sessions) == len(sessions):
+            raise Exception("Session not found")
+        
+        self._save_user_sessions(user_id, updated_sessions)
+        return True
     
     def update_org_data(self, user_id: str, filename: str, analysis: str, 
                        matching_table: List[Dict], response_prompt: str) -> Dict:

@@ -59,6 +59,9 @@ body {
     cursor: pointer;
     transition: all 0.3s ease;
     border-left: 3px solid transparent;
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .session-item:hover {
@@ -71,15 +74,55 @@ body {
     border-left-color: #2980b9;
 }
 
+.session-content {
+    flex: 1;
+}
+
 .session-title {
     font-weight: 600;
     font-size: 0.9rem;
     margin-bottom: 5px;
+    word-break: break-word;
 }
 
 .session-meta {
     font-size: 0.8rem;
     opacity: 0.8;
+}
+
+.session-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.session-item:hover .session-actions {
+    opacity: 1;
+}
+
+.delete-session-btn {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.delete-session-btn:hover {
+    background: #c0392b;
+    transform: scale(1.05);
+}
+
+.delete-session-btn i {
+    font-size: 0.7rem;
 }
 
 /* Main Content */
@@ -286,6 +329,16 @@ body {
     color: #2c3e50;
     margin-bottom: 20px;
     font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.analysis-result h3:before {
+    content: '\f0ea';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    color: #3498db;
 }
 
 .analysis-content {
@@ -293,9 +346,90 @@ body {
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 20px;
-    white-space: pre-wrap;
     line-height: 1.8;
     border-left: 4px solid #3498db;
+}
+
+/* Visual Requirements Formatting */
+.requirement-section {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    overflow: hidden;
+    transition: box-shadow 0.3s ease;
+}
+
+.requirement-section:hover {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.requirement-header {
+    background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    color: white;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.requirement-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.requirement-icon {
+    transition: transform 0.3s ease;
+}
+
+.requirement-section.expanded .requirement-icon {
+    transform: rotate(90deg);
+}
+
+.requirement-content {
+    padding: 20px;
+    border-left: 3px solid #3498db;
+}
+
+.requirement-content p {
+    margin-bottom: 10px;
+    color: #555;
+    line-height: 1.6;
+}
+
+.requirement-content ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.requirement-content li {
+    margin-bottom: 8px;
+    color: #666;
+    line-height: 1.5;
+}
+
+.requirement-content li:before {
+    content: '\f00c';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    color: #27ae60;
+    margin-right: 8px;
+    font-size: 0.8rem;
+}
+
+/* Remove default list styling since we're using custom icons */
+.requirement-content ul {
+    list-style: none;
+}
+
+/* Key highlights in requirements */
+.requirement-content strong {
+    color: #2c3e50;
+    background: #ecf0f1;
+    padding: 2px 6px;
+    border-radius: 4px;
 }
 
 /* Matching Table */

@@ -23,6 +23,14 @@ function setupEventListeners() {
     // Drag and drop listeners
     setupDragAndDrop('rfpUploadArea', 'rfpFileInput');
     setupDragAndDrop('orgUploadArea', 'orgFileInput');
+    
+    // Add click listeners for requirement sections (collapsible)
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.requirement-header')) {
+            const section = e.target.closest('.requirement-section');
+            section.classList.toggle('expanded');
+        }
+    });
 }
 
 function setupDragAndDrop(areaId, inputId) {
@@ -31,27 +39,36 @@ function setupDragAndDrop(areaId, inputId) {
     
     area.addEventListener('dragover', function(e) {
         e.preventDefault();
+        e.stopPropagation();
         area.classList.add('drag-over');
     });
     
     area.addEventListener('dragleave', function(e) {
         e.preventDefault();
+        e.stopPropagation();
         area.classList.remove('drag-over');
     });
     
     area.addEventListener('drop', function(e) {
         e.preventDefault();
+        e.stopPropagation();
         area.classList.remove('drag-over');
         
         const files = e.dataTransfer.files;
         if (files.length > 0) {
-            input.files = files;
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(files[0]);
+            input.files = dataTransfer.files;
             input.dispatchEvent(new Event('change'));
         }
     });
     
-    area.addEventListener('click', function() {
-        input.click();
+    // Only add click listener to the area, not the button
+    area.addEventListener('click', function(e) {
+        // Don't trigger if clicking the button inside
+        if (!e.target.classList.contains('btn')) {
+            input.click();
+        }
     });
 }
 
@@ -153,8 +170,73 @@ function displayRFPAnalysis(requirements) {
     const analysisDiv = document.getElementById('rfpAnalysis');
     const requirementsDiv = document.getElementById('rfpRequirements');
     
-    requirementsDiv.textContent = requirements;
+    // Parse and format requirements into visual sections
+    const formattedRequirements = formatRequirementsVisually(requirements);
+    requirementsDiv.innerHTML = formattedRequirements;
+    
     analysisDiv.classList.remove('hidden');
+}
+
+function formatRequirementsVisually(requirements) {
+    // Split requirements into sections
+    const sections = requirements.split(/\n(?=\d+\.|[A-Z][a-zA-Z\s]+:|\*\*[A-Z])/);
+    let formattedHTML = '';
+    
+    sections.forEach(section => {
+        const trimmedSection = section.trim();
+        if (!trimmedSection) return;
+        
+        // Check if it's a main heading (numbered or bolded)
+        if (trimmedSection.match(/^\d+\.\s*[A-Z]/) || trimmedSection.match(/^\*\*[A-Z]/)) {
+            const title = trimmedSection.split('\n')[0].replace(/^\d+\.\s*|\*\*/g, '');
+            const content = trimmedSection.split('\n').slice(1).join('\n').trim();
+            
+            formattedHTML += `
+                <div class="requirement-section">
+                    <div class="requirement-header">
+                        <i class="fas fa-chevron-right requirement-icon"></i>
+                        <h4>${title}</h4>
+                    </div>
+                    <div class="requirement-content">
+                        ${formatRequirementContent(content)}
+                    </div>
+                </div>
+            `;
+        } else {
+            // Regular content section
+            formattedHTML += `
+                <div class="requirement-section">
+                    <div class="requirement-content">
+                        ${formatRequirementContent(trimmedSection)}
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    return formattedHTML || `<div class="requirement-content">${requirements}</div>`;
+}
+
+function formatRequirementContent(content) {
+    if (!content) return '';
+    
+    // Convert bullet points to HTML lists
+    let formatted = content
+        .replace(/^[-•*]\s+(.+)$/gm, '<li>$1</li>')
+        .replace(/^(\d+)\.\s+(.+)$/gm, '<li>$2</li>');
+    
+    // Wrap consecutive <li> elements in <ul>
+    formatted = formatted.replace(/(<li>.*<\/li>(?:\s*<li>.*<\/li>)*)/gs, '<ul>$1</ul>');
+    
+    // Convert remaining line breaks to <br> for paragraphs
+    formatted = formatted.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+    
+    // Wrap in paragraph tags if no other block elements
+    if (!formatted.includes('<ul>') && !formatted.includes('<li>')) {
+        formatted = `<p>${formatted}</p>`;
+    }
+    
+    return formatted;
 }
 
 function displayOrgAnalysis(analysis, matchingTable) {
@@ -284,14 +366,73 @@ function displaySessions(sessions) {
         const status = session.output_filename ? 'Completed' : 'In Progress';
         
         sessionItem.innerHTML = `
-            <div class="session-title">${session.rfp_filename || 'Untitled RFP'}</div>
-            <div class="session-meta">${date} ${time}</div>
-            <div class="session-meta">Status: ${status}</div>
+            <div class="session-content">
+                <div class="session-title">${session.rfp_filename || 'Untitled RFP'}</div>
+                <div class="session-meta">${date} ${time}</div>
+                <div class="session-meta">Status: ${status}</div>
+            </div>
+            <div class="session-actions">
+                <button class="delete-session-btn" onclick="deleteSession(event, ${session.id})">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+            </div>
         `;
         
-        sessionItem.addEventListener('click', () => loadSession(session));
+        // Add click listener for session content (not delete button)
+        sessionItem.querySelector('.session-content').addEventListener('click', () => loadSession(session));
         sessionsList.appendChild(sessionItem);
     });
+}
+
+async function deleteSession(event, sessionId) {
+    event.stopPropagation(); // Prevent triggering session load
+    
+    if (!confirm('Are you sure you want to delete this session? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        showLoading('Deleting session...');
+        
+        const response = await fetch(`/delete_session/${sessionId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('Session deleted successfully!');
+            await loadSessions(); // Refresh sessions list
+            
+            // If we deleted the current session, reset to step 1
+            if (currentSession && currentSession.id === sessionId) {
+                currentSession = null;
+                resetToInitialState();
+            }
+        } else {
+            showError(result.error || 'Failed to delete session');
+        }
+    } catch (error) {
+        showError('Network error: ' + error.message);
+    } finally {
+        hideLoading();
+    }
+}
+
+function resetToInitialState() {
+    // Clear all form data and go back to step 1
+    document.getElementById('rfpFileInput').value = '';
+    document.getElementById('orgFileInput').value = '';
+    document.getElementById('responsePrompt').value = '';
+    originalPrompt = '';
+    
+    // Hide all analysis results
+    document.getElementById('rfpAnalysis').classList.add('hidden');
+    document.getElementById('orgAnalysis').classList.add('hidden');
+    document.getElementById('downloadSection').classList.add('hidden');
+    
+    // Go back to step 1
+    goToStep(1);
 }
 
 function loadSession(session) {
@@ -299,9 +440,20 @@ function loadSession(session) {
     document.querySelectorAll('.session-item').forEach(item => {
         item.classList.remove('active');
     });
-    event.currentTarget.classList.add('active');
+    
+    // Find the session item that was clicked and mark it active
+    const sessionItems = document.querySelectorAll('.session-item');
+    sessionItems.forEach(item => {
+        const title = item.querySelector('.session-title').textContent;
+        if (title === (session.rfp_filename || 'Untitled RFP')) {
+            item.classList.add('active');
+        }
+    });
     
     currentSession = session;
+    
+    // Reset UI first
+    resetToInitialState();
     
     // Load session data into UI
     if (session.rfp_requirements) {
