@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # proposal_writer_generic
 =======
 rfp_app/
