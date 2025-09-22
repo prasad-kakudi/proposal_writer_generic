@@ -13,7 +13,9 @@ class GeminiService:
             raise ValueError("GEMINI_API_KEY environment variable not set")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+        if not self.model:
+            raise ValueError("GEMINI_MODEL environment variable not set")
     
     def analyze_rfp(self, rfp_content: str) -> str:
         """Analyze RFP content and extract requirements"""
